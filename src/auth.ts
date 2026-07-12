@@ -13,7 +13,9 @@ async function hmac(data: string): Promise<string> {
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
   const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+  // base64url-safe: keine +, /, = -> kein Cookie-Encoding-Mismatch im Browser
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 export async function createSession(c: Context, nutzerId: number): Promise<void> {

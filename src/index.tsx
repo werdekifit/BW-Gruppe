@@ -23,14 +23,18 @@ app.get('/login', async (c) => {
 
 app.post('/login', async (c) => {
   const body = await c.req.parseBody();
-  const login = String(body.login || '').trim();
-  const passwort = String(body.passwort || '');
-  const u = await c.env.DB.prepare('SELECT * FROM nutzer WHERE login = ? AND aktiv = 1').bind(login).first<any>();
-  const seed = await c.env.DB.prepare("SELECT login, name, rolle FROM nutzer WHERE aktiv=1 ORDER BY rolle, name").all();
-  if (!u || u.passwort !== passwort) {
+  const login = String(body.login || '').trim().toLowerCase();
+  const passwort = String(body.passwort || '').trim();
+  const wantsJson = (c.req.header('accept') || '').includes('application/json');
+  // Login case-insensitiv (Kürzel), Passwort whitespace-tolerant
+  const u = await c.env.DB.prepare('SELECT * FROM nutzer WHERE lower(login) = ? AND aktiv = 1').bind(login).first<any>();
+  if (!u || String(u.passwort).trim() !== passwort) {
+    if (wantsJson) return c.json({ ok: false, error: 'Login oder Passwort falsch.' }, 401);
+    const seed = await c.env.DB.prepare("SELECT login, name, rolle FROM nutzer WHERE aktiv=1 ORDER BY rolle, name").all();
     return c.html(loginPage({ error: 'Login oder Passwort falsch.', seedUsers: seed.results as any[] }));
   }
   await createSession(c, u.id);
+  if (wantsJson) return c.json({ ok: true, redirect: '/cockpit' });
   return c.redirect('/cockpit');
 });
 

@@ -28,7 +28,8 @@ export function loginPage(opts: { error?: string; seedUsers: { login: string; na
     <input id="login" name="login" type="text" autocomplete="username" required autofocus />
     <label for="passwort">Passwort</label>
     <input id="passwort" name="passwort" type="password" autocomplete="current-password" required />
-    <button class="btn" type="submit" style="width:100%;justify-content:center;margin-top:18px;">Anmelden</button>
+    <button class="btn" id="login-btn" type="submit" style="width:100%;justify-content:center;margin-top:18px;">Anmelden</button>
+    <div id="login-msg" style="display:none;margin-top:14px;padding:10px 12px;border-radius:10px;font-size:13px;"></div>
 
     <div class="hint">Schnellauswahl (Demo) — Klick füllt das Login, Passwort <b>bw2026!</b></div>
     <div class="quick-users">${quick}</div>
@@ -41,6 +42,45 @@ document.querySelectorAll('.quick-user').forEach(function(b){
     document.getElementById('passwort').value = 'bw2026!';
     document.getElementById('passwort').focus();
   });
+});
+
+var form = document.querySelector('form.login-card');
+var msg = document.getElementById('login-msg');
+var btn = document.getElementById('login-btn');
+function showMsg(text, ok){
+  msg.style.display='block';
+  msg.style.background = ok ? 'rgba(63,178,127,.2)' : 'rgba(217,83,79,.22)';
+  msg.style.color = ok ? '#3FB27F' : '#D9534F';
+  msg.textContent = text;
+}
+form.addEventListener('submit', async function(e){
+  e.preventDefault();
+  btn.disabled = true; btn.textContent = 'Anmelden…';
+  showMsg('Anmeldung läuft…', true);
+  try {
+    var res = await fetch('/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},
+      credentials:'same-origin',
+      body: 'login='+encodeURIComponent(document.getElementById('login').value)+'&passwort='+encodeURIComponent(document.getElementById('passwort').value)
+    });
+    var data = await res.json().catch(function(){return {};});
+    if (!res.ok || !data.ok) {
+      showMsg(data.error || 'Login oder Passwort falsch.', false);
+      btn.disabled=false; btn.textContent='Anmelden'; return;
+    }
+    // Cookie-Test: können wir jetzt aufs Cockpit?
+    var check = await fetch('/cockpit', { credentials:'same-origin', redirect:'manual' });
+    if (check.type === 'opaqueredirect' || check.status === 302 || check.redirected) {
+      showMsg('Anmeldung ok, aber dein Browser speichert das Login-Cookie nicht. Bitte Cookies für diese Seite erlauben (nicht Inkognito / Cookie-Blocker deaktivieren) und erneut versuchen.', false);
+      btn.disabled=false; btn.textContent='Anmelden'; return;
+    }
+    showMsg('Erfolgreich – weiterleiten…', true);
+    window.location.href = data.redirect || '/cockpit';
+  } catch(err){
+    showMsg('Netzwerkfehler: '+err.message, false);
+    btn.disabled=false; btn.textContent='Anmelden';
+  }
 });
 </script>
 </body>
