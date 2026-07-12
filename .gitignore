@@ -33,3 +33,7 @@ lerna-debug.log*
 .DS_Store
 .wrangler/
 dist/
+
+# Wrangler / D1 local state
+.wrangler/
+dist/
