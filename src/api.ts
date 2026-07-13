@@ -181,6 +181,46 @@ api.post('/gewerk', async (c) => {
   return c.json({ id: r.meta.last_row_id });
 });
 
+// ========== EXPORT (Voll-Backup als SQL, nur GF) ==========
+// Erzeugt eine idempotente Import-Datei (DELETE + INSERT) des kompletten Datenstands —
+// für Backup und Migration (z. B. Import in eine andere Umgebung wie Manus).
+const EXPORT_TABELLEN = ['nutzer','objekt','vorbereitung','gewerk','aufgabe','foto','materialanfrage','verlauf'];
+
+function sqlWert(v: any): string {
+  if (v === null || v === undefined) return 'NULL';
+  if (typeof v === 'number') return String(v);
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
+
+api.get('/export.sql', async (c) => {
+  const user = c.get('user');
+  if (user.rolle !== 'GF') return c.json({ error: 'Nur GF darf exportieren' }, 403);
+  const zeilen: string[] = [
+    `-- BW Bau-Cockpit — Datenexport (Voll-Backup)`,
+    `-- Erzeugt: ${new Date().toISOString()} · Reihenfolge FK-sicher · idempotent (DELETE vor INSERT)`,
+    ``,
+  ];
+  for (const t of [...EXPORT_TABELLEN].reverse()) zeilen.push(`DELETE FROM ${t};`);
+  zeilen.push('');
+  for (const t of EXPORT_TABELLEN) {
+    const res = await c.env.DB.prepare(`SELECT * FROM ${t}`).all();
+    const rows = res.results as any[];
+    zeilen.push(`-- ${t} (${rows.length} Zeilen)`);
+    for (const r of rows) {
+      const cols = Object.keys(r);
+      zeilen.push(`INSERT INTO ${t} (${cols.join(', ')}) VALUES (${cols.map(k => sqlWert(r[k])).join(', ')});`);
+    }
+    zeilen.push('');
+  }
+  return new Response(zeilen.join('\n'), {
+    headers: {
+      'Content-Type': 'application/sql; charset=utf-8',
+      'Content-Disposition': `attachment; filename="bw-cockpit-export-${new Date().toISOString().substring(0,10)}.sql"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+});
+
 // ========== VORBEREITUNG ==========
 const VORB_STATUS_FELDER = ['genehmigung','statik','bb','sperrung','b_modus','demontage','lv'];
 const VORB_LABELS: Record<string, string> = {

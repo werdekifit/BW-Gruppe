@@ -46,6 +46,7 @@
 | `/api/foto/:id` | GET | Bild aus R2 streamen (Cache 1 Tag, nur angemeldet) | alle (angemeldet) |
 | `/api/foto/:id` | DELETE | Foto löschen (R2-Objekt + D1-Zeile) | GF · BL (eigene) |
 | `/api/material` `/api/material/:id` | POST/PUT/DELETE | Anfrage stellen/ändern/zurückziehen | POST GF/BL · Status/Notiz GF/Einkauf |
+| `/api/export.sql` | GET | Voll-Backup des Datenbestands als idempotente SQL-Datei (Migration/Backup) | GF |
 
 ## Datenarchitektur
 - **Datenmodell**: `nutzer`, `objekt` (+ prio_rang, leistung, az_netto, sr_netto, ist_kosten), `vorbereitung` (1:1, Vorbereitungsphase), `gewerk` (+ an, install_status, montage_status, angebot_netto, abgerechnet_netto, notiz), `aufgabe`, `foto`, `materialanfrage`, `verlauf` (Änderungsprotokoll).
