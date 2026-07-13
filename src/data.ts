@@ -8,6 +8,8 @@ export interface ObjektMitAmpel extends Objekt {
   gewerke_blockiert: number;
   aufgaben_ueberfaellig: number;
   material_offen: number;
+  angebot_summe: number | null;
+  abgerechnet_summe: number | null;
   ampel: Ampel;
   ampel_override_flag: boolean;
   fortschritt: number;
@@ -21,7 +23,9 @@ SELECT o.*,
   (SELECT COUNT(*) FROM gewerk g WHERE g.objekt_id = o.id AND g.status = 'blockiert') AS gewerke_blockiert,
   (SELECT COUNT(*) FROM gewerk g WHERE g.objekt_id = o.id AND g.status != 'fertig') AS gewerke_nicht_fertig,
   (SELECT COUNT(*) FROM aufgabe a WHERE a.objekt_id = o.id AND a.status = 'offen' AND a.frist IS NOT NULL AND a.frist < date('now')) AS aufgaben_ueberfaellig,
-  (SELECT COUNT(*) FROM materialanfrage m WHERE m.objekt_id = o.id AND m.status = 'offen') AS material_offen
+  (SELECT COUNT(*) FROM materialanfrage m WHERE m.objekt_id = o.id AND m.status = 'offen') AS material_offen,
+  (SELECT SUM(g.angebot_netto) FROM gewerk g WHERE g.objekt_id = o.id) AS angebot_summe,
+  (SELECT SUM(g.abgerechnet_netto) FROM gewerk g WHERE g.objekt_id = o.id) AS abgerechnet_summe
 FROM objekt o
 LEFT JOIN nutzer n ON n.id = o.bauleiter_id
 `;
@@ -41,7 +45,11 @@ function mapObjekt(row: any): ObjektMitAmpel {
 
 export async function ladeObjekte(db: D1Database, opts: { inklArchiviert?: boolean } = {}): Promise<ObjektMitAmpel[]> {
   const where = opts.inklArchiviert ? '' : 'WHERE o.archiviert = 0';
-  const sql = `${OBJEKT_AGG_SQL} ${where} ORDER BY o.prio DESC, o.objektnr ASC`;
+  // Sortierung: aktive vor archivierten, dann echter Prio-Rang (1 oben, ohne Rang unten)
+  const sql = `${OBJEKT_AGG_SQL} ${where}
+    ORDER BY o.archiviert ASC,
+      CASE WHEN o.prio_rang IS NULL THEN 1 ELSE 0 END,
+      o.prio_rang ASC, o.prio DESC, o.objektnr ASC`;
   const res = await db.prepare(sql).all();
   return (res.results as any[]).map(mapObjekt);
 }

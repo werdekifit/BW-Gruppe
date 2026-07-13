@@ -32,11 +32,19 @@ export function jourFixeBody(d: JourFixeData, user: Nutzer): string {
 
   const objOptions = d.prioObjekte.map(o=>`<option value="${o.id}">${escapeHtml(o.objektnr)} · ${escapeHtml(o.kurzname)}</option>`).join('');
 
+  const heute = new Date();
+  const datumStr = heute.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+
   return `
+  <div class="print-head">
+    <div class="print-mark">BW GRUPPE · Bau-Cockpit</div>
+    <div class="print-title">Jour-fixe-Agenda · KW ${kw} · ${escapeHtml(datumStr)}</div>
+  </div>
+
   <div class="page-head">
     <h1>Jour fixe · KW ${kw}</h1>
     <div class="head-actions">
-      <button class="btn btn-ghost" onclick="window.print()">🖨 Drucken</button>
+      <button class="btn btn-ghost" onclick="window.print()">🖨 Drucken / PDF-Export</button>
       ${kannEntscheiden ? `<button class="btn" onclick="toggleForm('form-entscheid')">🎤 Zu entscheiden</button>` : ''}
     </div>
   </div>
@@ -53,6 +61,8 @@ export function jourFixeBody(d: JourFixeData, user: Nutzer): string {
     <div class="jf-col"><h3><span class="dot rot"></span> Blockiert</h3>${blockItems}</div>
     <div class="jf-col"><h3>🧭 Zu entscheiden (GF)</h3>${entschItems}</div>
   </div>
+
+  <div class="print-foot">Erstellt am ${escapeHtml(datumStr)} · BW Bau-Cockpit — im Browser-Druckdialog „Als PDF speichern" wählen.</div>
   `;
 }
 

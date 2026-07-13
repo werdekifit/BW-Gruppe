@@ -51,6 +51,37 @@ export const GEWERK_STATUS_ICON: Record<string, string> = {
   blockiert: '🔴',
 };
 
+// Vorbereitungs-Status (Excel: Offen/Aktiv/Erl./x)
+export const VORB_STATUS_LABEL: Record<string, string> = {
+  offen: 'offen',
+  aktiv: 'aktiv',
+  erledigt: 'erledigt',
+  entfaellt: 'entfällt',
+};
+export const VORB_STATUS_ICON: Record<string, string> = {
+  offen: '⚪',
+  aktiv: '🔵',
+  erledigt: '✅',
+  entfaellt: '➖',
+};
+export const VORB_FELDER: { key: string; label: string }[] = [
+  { key: 'genehmigung', label: 'Genehmigung' },
+  { key: 'statik',      label: 'Statik' },
+  { key: 'bb',          label: 'Baubeginn (BB)' },
+  { key: 'sperrung',    label: 'Sperrung' },
+  { key: 'b_modus',     label: 'Bewohner-Modus' },
+  { key: 'demontage',   label: 'Demontage' },
+  { key: 'lv',          label: 'LV vorhanden' },
+];
+
+// Euro-Format de-DE, z. B. 95.000 € / 45.095,60 €
+export function fmtEuro(n: number | null | undefined, decimals = 0): string {
+  if (n == null) return '—';
+  return new Intl.NumberFormat('de-DE', {
+    minimumFractionDigits: decimals, maximumFractionDigits: Math.max(decimals, 2),
+  }).format(n) + ' €';
+}
+
 // Datum dd.mm.yyyy
 export function fmtDatum(d: string | null): string {
   if (!d) return '—';

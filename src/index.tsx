@@ -61,7 +61,8 @@ app.get('/', (c) => c.redirect('/cockpit'));
 
 app.get('/cockpit', async (c) => {
   const user = c.get('user');
-  const objekte = await ladeObjekte(c.env.DB);
+  // inkl. archivierter Objekte — Filterung übernimmt der Client (Filter „Abgeschlossen/Archiv")
+  const objekte = await ladeObjekte(c.env.DB, { inklArchiviert: true });
   const bauleiter = await c.env.DB.prepare("SELECT id, name FROM nutzer WHERE rolle IN ('Bauleiter','GF') AND aktiv=1 ORDER BY name").all();
   const body = cockpitBody(objekte, user, bauleiter.results as any[]);
   return c.html(layout({ title: 'Cockpit', user, active: 'cockpit', body }));
@@ -94,7 +95,16 @@ app.get('/objekt/:id', async (c) => {
 
   const nutzer = (await c.env.DB.prepare("SELECT id, name, rolle FROM nutzer WHERE aktiv=1 ORDER BY name").all()).results as any[];
 
-  let body = detailBody({ objekt, gewerke, aufgaben, fotos, material, nutzer }, user);
+  // Vorbereitung (1:1) — bei Bedarf anlegen
+  await c.env.DB.prepare('INSERT OR IGNORE INTO vorbereitung (objekt_id) VALUES (?)').bind(id).run();
+  const vorbereitung = (await c.env.DB.prepare('SELECT * FROM vorbereitung WHERE objekt_id = ?').bind(id).first()) as any;
+
+  const verlauf = (await c.env.DB.prepare(`
+    SELECT v.*, n.name AS nutzer_name FROM verlauf v
+    LEFT JOIN nutzer n ON n.id = v.nutzer_id
+    WHERE v.objekt_id = ? ORDER BY v.zeitpunkt DESC, v.id DESC LIMIT 100`).bind(id).all()).results as any[];
+
+  let body = detailBody({ objekt, gewerke, aufgaben, fotos, material, nutzer, vorbereitung, verlauf }, user);
 
   // Objekt-Modal (bearbeiten) anhängen wenn Rechte
   if (darfBearbeiten(user.rolle)) {
@@ -120,15 +130,15 @@ app.get('/jour-fixe', async (c) => {
     SELECT g.objekt_id, o.objektnr, o.kurzname, COALESCE(g.blocker_grund, g.name || ' blockiert') AS grund
     FROM gewerk g JOIN objekt o ON o.id = g.objekt_id
     WHERE g.status='blockiert' AND o.archiviert=0
-    ORDER BY o.prio DESC`).all()).results as any[];
+    ORDER BY CASE WHEN o.prio_rang IS NULL THEN 1 ELSE 0 END, o.prio_rang, o.prio DESC`).all()).results as any[];
 
   const entscheiden = (await db.prepare(`
     SELECT a.objekt_id, o.objektnr, o.kurzname, a.text
     FROM aufgabe a JOIN objekt o ON o.id = a.objekt_id
     WHERE a.entscheidung=1 AND a.status='offen' AND o.archiviert=0
-    ORDER BY o.prio DESC, a.erstellt_am DESC`).all()).results as any[];
+    ORDER BY CASE WHEN o.prio_rang IS NULL THEN 1 ELSE 0 END, o.prio_rang, a.erstellt_am DESC`).all()).results as any[];
 
-  const prioObjekte = (await db.prepare("SELECT id, objektnr, kurzname FROM objekt WHERE archiviert=0 ORDER BY prio DESC, objektnr").all()).results as any[];
+  const prioObjekte = (await db.prepare("SELECT id, objektnr, kurzname FROM objekt WHERE archiviert=0 ORDER BY CASE WHEN prio_rang IS NULL THEN 1 ELSE 0 END, prio_rang, objektnr").all()).results as any[];
 
   const body = jourFixeBody({ fertig, blockiert, entscheiden, prioObjekte }, user);
   return c.html(layout({ title:'Jour fixe', user, active:'jourfixe', body }));

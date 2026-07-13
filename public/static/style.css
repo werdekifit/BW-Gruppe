@@ -118,6 +118,37 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .obj-card .footline { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; }
 
 .prio-tag { background: rgba(91,143,199,.2); color: var(--accent-hell); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing:.05em;}
+.rang-tag { background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing:.03em;}
+.archiv-tag { background: rgba(185,194,206,.18); color: var(--muted); font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 6px; letter-spacing:.05em;}
+.obj-card.archived { opacity: .68; }
+
+/* ---------- Fortschritt ---------- */
+.progress { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; margin-top: 10px; border: 1px solid var(--border); }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--gruen)); border-radius: 999px; transition: width .3s; }
+.progress.big { height: 9px; flex: 1; }
+.progress-line { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+
+/* ---------- Kaufmännische Kennzahlen ---------- */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+.kpi { background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
+.kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+.kpi-wert { font-size: 16px; font-weight: 800; margin-top: 2px; }
+.sum-money { font-size: 13px; color: var(--accent-hell); }
+td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Vorbereitungs-Chips ---------- */
+.vorb-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px;
+  font-size: 13px; font-weight: 700; border: 1px solid var(--border); cursor: pointer;
+  background: var(--card-2); color: var(--text); font-family: inherit;
+}
+.vorb-chip:hover { border-color: var(--accent); }
+.st-vorb-offen    { background: rgba(185,194,206,.15); color: var(--muted); }
+.st-vorb-aktiv    { background: rgba(91,143,199,.2);  color: var(--accent-hell); }
+.st-vorb-erledigt { background: rgba(63,178,127,.2);  color: var(--gruen); }
+.st-vorb-entfaellt{ background: rgba(185,194,206,.08); color: var(--muted); text-decoration: line-through; }
+.st-entfaellt { background: rgba(185,194,206,.08); color: var(--muted); }
+.verlauf-delta { color: var(--muted); font-size: 13px; font-weight: 400; }
 
 /* ---------- Ampel ---------- */
 .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
@@ -232,3 +263,27 @@ textarea { resize: vertical; min-height: 70px; }
 
 .empty { text-align:center; color: var(--muted); padding: 30px; font-size: 14px; }
 .readonly-note { color: var(--gelb); font-size: 12px; margin-top: 4px; }
+
+/* ---------- Druck / PDF-Export (Jour-fixe-Agenda) ---------- */
+.print-head, .print-foot { display: none; }
+
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  .topbar, .filters, .btn, .mic-btn, form, #toast-root, .page-head .head-actions { display: none !important; }
+  .wrap { max-width: 100%; padding: 0; }
+  h1 { color: #000; font-size: 20px; }
+
+  .print-head { display: block; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
+  .print-head .print-mark { font-weight: 800; letter-spacing: .25em; font-size: 15px; color: #000; }
+  .print-head .print-title { font-size: 13px; color: #333; margin-top: 4px; }
+  .print-foot { display: block; margin-top: 20px; padding-top: 8px; border-top: 1px solid #999; font-size: 10px; color: #555; }
+
+  .jf-cols { grid-template-columns: 1fr; gap: 12px; }
+  .jf-col { background: #fff; border: 1px solid #999; color: #000; page-break-inside: avoid; border-radius: 6px; }
+  .jf-col h3 { color: #000; }
+  .jf-item { background: #fff; border: 1px solid #ddd; color: #000; border-left: 3px solid #888; }
+  .jf-item .obj { color: #000; }
+  .jf-item .what { color: #333; }
+  .jf-empty { color: #555; }
+  .dot, .ampel-strip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

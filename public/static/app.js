@@ -44,25 +44,35 @@ function toggleForm(id){
 function schliesseModal(id){ var m = document.getElementById(id); if(m) m.classList.remove('open'); }
 
 // ---------- Cockpit filter ----------
+function wendeCockpitFilterAn(f){
+  var cards = document.querySelectorAll('#objekt-grid .obj-card');
+  var sichtbar = 0;
+  cards.forEach(function(card){
+    var archiviert = card.getAttribute('data-archiviert') === '1';
+    var show;
+    if (f === 'archiviert') show = archiviert;
+    else if (f === 'abgeschlossen') show = card.getAttribute('data-abgeschlossen') === '1';
+    else {
+      show = !archiviert;
+      if (f === 'prio') show = show && card.getAttribute('data-prio') === '1';
+      else if (f === 'blockiert') show = show && card.getAttribute('data-blockiert') === '1';
+      else if (f === 'meine') show = show && card.getAttribute('data-bl') == window.__MEINE_ID;
+    }
+    card.style.display = show ? '' : 'none';
+    if (show) sichtbar++;
+  });
+  var keine = document.getElementById('keine-treffer');
+  if (keine) keine.style.display = sichtbar === 0 ? 'block' : 'none';
+}
 document.querySelectorAll('.chip-filter[data-filter]').forEach(function(chip){
   chip.addEventListener('click', function(){
     document.querySelectorAll('.chip-filter[data-filter]').forEach(function(c){ c.classList.remove('active'); });
     chip.classList.add('active');
-    var f = chip.getAttribute('data-filter');
-    var cards = document.querySelectorAll('#objekt-grid .obj-card');
-    var sichtbar = 0;
-    cards.forEach(function(card){
-      var show = true;
-      if (f === 'prio') show = card.getAttribute('data-prio') === '1';
-      else if (f === 'blockiert') show = card.getAttribute('data-blockiert') === '1';
-      else if (f === 'meine') show = card.getAttribute('data-bl') == window.__MEINE_ID;
-      card.style.display = show ? '' : 'none';
-      if (show) sichtbar++;
-    });
-    var keine = document.getElementById('keine-treffer');
-    if (keine) keine.style.display = sichtbar === 0 ? 'block' : 'none';
+    wendeCockpitFilterAn(chip.getAttribute('data-filter'));
   });
 });
+// Beim Laden: Standardfilter „Alle" = archivierte ausblenden
+if (document.getElementById('objekt-grid')) wendeCockpitFilterAn('alle');
 
 // ---------- Einkauf filter ----------
 document.querySelectorAll('.chip-filter[data-mfilter]').forEach(function(chip){
@@ -114,6 +124,74 @@ async function aendereGewerkStatus(id, status){
   try {
     await api('PUT', '/api/gewerk/'+id, { status: status, blocker_grund: grund });
     toast('Status gespeichert');
+    setTimeout(function(){ location.reload(); }, 400);
+  } catch(e){ toast(e.message, true); }
+}
+
+// ========== Gewerk-Details / Gewerk hinzufügen ==========
+function oeffneGewerkEdit(btn){
+  var g = JSON.parse(btn.getAttribute('data-g'));
+  var form = document.getElementById('gewerk-form');
+  if (!form) return;
+  form.querySelector('[name=id]').value = g.id;
+  form.querySelector('[name=an]').value = g.an || '';
+  form.querySelector('[name=verantwortlich_typ]').value = g.verantwortlich_typ || '';
+  form.querySelector('[name=install_status]').value = g.install_status || '';
+  form.querySelector('[name=montage_status]').value = g.montage_status || '';
+  form.querySelector('[name=angebot_netto]').value = g.angebot_netto === '' || g.angebot_netto == null ? '' : g.angebot_netto;
+  form.querySelector('[name=abgerechnet_netto]').value = g.abgerechnet_netto === '' || g.abgerechnet_netto == null ? '' : g.abgerechnet_netto;
+  form.querySelector('[name=notiz]').value = g.notiz || '';
+  document.getElementById('gewerk-modal-title').textContent = 'Gewerk bearbeiten: ' + g.name;
+  document.getElementById('gewerk-modal').classList.add('open');
+}
+async function speichereGewerkDetails(e){
+  e.preventDefault();
+  var fd = new FormData(e.target);
+  var obj = {}; fd.forEach(function(v,k){ obj[k]=v; });
+  try {
+    await api('PUT', '/api/gewerk/'+obj.id+'/details', obj);
+    toast('Gewerk gespeichert');
+    setTimeout(function(){ location.reload(); }, 400);
+  } catch(err){ toast(err.message, true); }
+  return false;
+}
+async function speichereGewerk(e){
+  e.preventDefault();
+  var fd = new FormData(e.target);
+  var obj = { objekt_id: window.__OBJEKT_ID };
+  fd.forEach(function(v,k){ if(v) obj[k]=v; });
+  try { await api('POST','/api/gewerk', obj); toast('Gewerk hinzugefügt'); setTimeout(function(){location.reload();},400); }
+  catch(err){ toast(err.message, true); }
+  return false;
+}
+
+// ========== Vorbereitung ==========
+var VORB_ZYKLUS = ['offen','aktiv','erledigt','entfaellt'];
+async function zyklusVorbereitung(btn){
+  var feld = btn.getAttribute('data-feld');
+  var aktuell = btn.getAttribute('data-status');
+  var next = VORB_ZYKLUS[(VORB_ZYKLUS.indexOf(aktuell) + 1) % VORB_ZYKLUS.length];
+  try {
+    await api('PUT', '/api/vorbereitung/' + window.__OBJEKT_ID, { feld: feld, wert: next });
+    toast('Vorbereitung gespeichert');
+    setTimeout(function(){ location.reload(); }, 350);
+  } catch(e){ toast(e.message, true); }
+}
+async function speichereVorbereitungFeld(feld, wert){
+  try {
+    await api('PUT', '/api/vorbereitung/' + window.__OBJEKT_ID, { feld: feld, wert: wert });
+    toast('Gespeichert');
+    if (feld !== 'notiz') setTimeout(function(){ location.reload(); }, 350);
+  } catch(e){ toast(e.message, true); }
+}
+
+// ========== Archivieren ==========
+async function archiviereObjekt(id, ziel){
+  var frage = ziel ? 'Baustelle abschließen und archivieren?' : 'Baustelle reaktivieren?';
+  if (!confirm(frage)) return;
+  try {
+    await api('POST', '/api/objekt/'+id+'/archiv', { archiviert: ziel });
+    toast(ziel ? 'Baustelle archiviert' : 'Baustelle reaktiviert');
     setTimeout(function(){ location.reload(); }, 400);
   } catch(e){ toast(e.message, true); }
 }
