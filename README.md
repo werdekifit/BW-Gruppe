@@ -42,13 +42,16 @@
 | `/api/gewerk/:id/details` | PUT | AN, Install./Montage, Angebot/Abgerechnet, Notiz | GF/BL |
 | `/api/vorbereitung/:objektId` | PUT | Vorbereitungs-Feld setzen (`{feld, wert}`; Felder: genehmigung, statik, bb, sperrung, b_modus, demontage, lv, bb_datum, notiz) | GF/BL |
 | `/api/aufgabe` `/api/aufgabe/:id` | POST/PUT | Aufgabe anlegen / erledigt-Status | GF/BL |
-| `/api/foto` | POST | Foto hochladen (multipart) | GF/BL |
+| `/api/foto` | POST | Foto hochladen (multipart) → Bild nach R2, Verweis in D1 | GF/BL |
+| `/api/foto/:id` | GET | Bild aus R2 streamen (Cache 1 Tag, nur angemeldet) | alle (angemeldet) |
+| `/api/foto/:id` | DELETE | Foto löschen (R2-Objekt + D1-Zeile) | GF · BL (eigene) |
 | `/api/material` `/api/material/:id` | POST/PUT/DELETE | Anfrage stellen/ändern/zurückziehen | POST GF/BL · Status/Notiz GF/Einkauf |
 
 ## Datenarchitektur
 - **Datenmodell**: `nutzer`, `objekt` (+ prio_rang, leistung, az_netto, sr_netto, ist_kosten), `vorbereitung` (1:1, Vorbereitungsphase), `gewerk` (+ an, install_status, montage_status, angebot_netto, abgerechnet_netto, notiz), `aufgabe`, `foto`, `materialanfrage`, `verlauf` (Änderungsprotokoll).
-- **Migrationen**: `0001_initial_schema.sql` (MVP) + `0002_v2_vollausbau.sql` (additiv — bestehende Daten bleiben erhalten; legt `vorbereitung`-Zeilen für Bestandsobjekte an).
-- **Speicher**: Cloudflare **D1** (SQLite). Fotos als Data-URL in der DB (max. 3 MB).
+- **Migrationen**: `0001_initial_schema.sql` (MVP) + `0002_v2_vollausbau.sql` (Vollausbau, additiv) + `0003_foto_r2.sql` (Foto-Spalten `r2_key`/`content_type`/`groesse`).
+- **Speicher**: Cloudflare **D1** (SQLite) für alle Sachdaten (Projekte/Gewerke/…). **Fotos in Cloudflare R2** (Objektspeicher, Binding `BUCKET`, Bucket `bw-bau-fotos`): das Bild liegt in R2 (praktisch unbegrenzt, skaliert auf tausende/Millionen Fotos), in D1 steht nur der Schlüssel (`r2_key`). Upload bis 15 MB, nur Bilddateien; Auslieferung über `/api/foto/:id` (nur angemeldet, 1 Tag Cache). `datei_url`-Fallback für Seed-Platzhalter/Altbestand bleibt erhalten.
+  > Hintergrund: D1 ist auf 10 GB pro Datenbank und 2 MB pro Zeile begrenzt — für Foto-Massen ungeeignet. R2 ist unbegrenzt und ohne Egress-Kosten und damit der richtige Ort für Bilder.
 - **Ampel-Logik** (`src/util.ts`): rot = blockiertes Gewerk oder Fertigstellung überschritten (und nicht alles fertig); gelb = überfällige Aufgabe oder < 30 Tage bis Ziel; sonst grün; manuell übersteuerbar.
 - **Status-Mapping Excel → App**: `Erl.` → erledigt/fertig · `Aktiv` → aktiv/läuft · `Offen` → offen · `x` → entfällt · `Vorh.` → erledigt (vorhanden) · `Teilweise` → aktiv. FS-Jahresangaben (2026/2027) → 31.12.JJJJ, KW-Angaben grob in Datum umgerechnet bzw. als Notiz.
 
@@ -70,17 +73,24 @@
 7. 🎤 auf allen Textfeldern diktieren (Web Speech API, de-DE).
 
 ## Deployment
-- **Plattform**: Cloudflare Pages + D1
-- **Status**: ✅ lokal lauffähig (Sandbox), noch nicht auf Cloudflare deployt
-- **Tech-Stack**: Hono + TypeScript (SSR HTML) + Vanilla JS + D1 (SQLite)
-- **Lokal starten**:
+- **Plattform**: Cloudflare **Workers** (Git-Build via `npx wrangler deploy`) + **D1** (Sachdaten) + **R2** (Fotos)
+- **Tech-Stack**: Hono + TypeScript (SSR HTML) + Vanilla JS + D1 (SQLite) + R2 (Objektspeicher)
+- **Bindings** (in `wrangler.jsonc`): `DB` → D1 `webapp-production`; `BUCKET` → R2 `bw-bau-fotos`. Beide müssen im Cloudflare-Konto existieren, bevor deployt wird.
+- **Einmalige Cloud-Einrichtung**:
+  ```bash
+  npx wrangler d1 create webapp-production      # database_id in wrangler.jsonc eintragen
+  npx wrangler r2 bucket create bw-bau-fotos    # R2 muss im Konto aktiviert sein
+  npx wrangler d1 migrations apply webapp-production --remote
+  npx wrangler d1 execute webapp-production --remote --file=./seed.sql
+  ```
+- **Lokal starten** (R2 & D1 werden lokal simuliert):
   ```bash
   npm run build
   npx wrangler d1 migrations apply webapp-production --local
   npx wrangler d1 execute webapp-production --local --file=./seed.sql
-  pm2 start ecosystem.config.cjs
+  pm2 start ecosystem.config.cjs   # bzw. npx wrangler dev
   ```
 - **Letzte Aktualisierung**: 2026-07-13
 
 ## Roadmap v3 (Ideen)
-Abhängigkeits-Automatik zwischen Gewerken · Kommentar-Threads · CSV-/Excel-Re-Import als Abgleich · echter OneDrive/M365-Sync · Foto-Direktupload in R2 · Kosten-Auswertung (Soll/Ist je Gewerk) · Push-Benachrichtigungen bei Blockern.
+Abhängigkeits-Automatik zwischen Gewerken · Kommentar-Threads · CSV-/Excel-Re-Import als Abgleich · echter OneDrive/M365-Sync · Bild-Verkleinerung/Thumbnails beim Upload (spart R2-Speicher & Ladezeit) · Kosten-Auswertung (Soll/Ist je Gewerk) · Push-Benachrichtigungen bei Blockern.

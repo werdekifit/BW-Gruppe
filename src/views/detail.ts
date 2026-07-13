@@ -243,10 +243,17 @@ function aufgabenPanel(d: DetailData, user: Nutzer, kann: boolean): string {
 }
 
 function fotosPanel(d: DetailData, kann: boolean): string {
-  const items = d.fotos.map(f=>`<div class="foto-item">
-    <img src="${escapeHtml(f.datei_url||'/static/img/placeholder-bau.svg')}" alt="${escapeHtml(f.bereich||'Foto')}" loading="lazy">
-    <div class="cap"><div class="bereich">${escapeHtml(f.bereich||'—')}</div><div class="kom">${escapeHtml(f.kommentar||'')} · ${fmtDatum(f.datum)}</div></div>
-  </div>`).join('');
+  const items = d.fotos.map(f=>{
+    // R2-Bild über /api/foto/:id ausliefern, sonst Fallback (Seed-Platzhalter/Altbestand)
+    const src = f.r2_key ? `/api/foto/${f.id}` : (f.datei_url || '/static/img/placeholder-bau.svg');
+    return `<div class="foto-item">
+    <img src="${escapeHtml(src)}" alt="${escapeHtml(f.bereich||'Foto')}" loading="lazy">
+    <div class="cap">
+      <div class="bereich">${escapeHtml(f.bereich||'—')}${kann?`<button class="foto-del" onclick="loescheFoto(${f.id})" title="Foto löschen">✕</button>`:''}</div>
+      <div class="kom">${escapeHtml(f.kommentar||'')} · ${fmtDatum(f.datum)}</div>
+    </div>
+  </div>`;
+  }).join('');
   return `<div class="panel">
     <div class="panel-head"><h2>Fotos</h2>${kann?`<button class="btn btn-sm" onclick="toggleForm('form-foto')">+ Foto</button>`:''}</div>
     ${kann?`<form id="form-foto" style="display:none;margin-bottom:16px;" onsubmit="return speichereFoto(event)">

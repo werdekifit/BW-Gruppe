@@ -249,6 +249,10 @@ api.put('/aufgabe/:id', async (c) => {
 });
 
 // ========== FOTO ==========
+// Bild wird in R2 (Objektspeicher) abgelegt; in D1 steht nur der Schlüssel (skalierbar
+// für tausende Bilder). datei_url bleibt Fallback für Seed-Platzhalter/Altbestand.
+const FOTO_MAX_BYTES = 15_000_000; // 15 MB
+
 api.post('/foto', async (c) => {
   const user = c.get('user');
   if (!darfBearbeiten(user.rolle)) return c.json({ error: 'Keine Berechtigung' }, 403);
@@ -256,24 +260,71 @@ api.post('/foto', async (c) => {
   const objekt_id = num(form.objekt_id);
   if (!objekt_id) return c.json({ error: 'Objekt fehlt' }, 400);
 
-  let datei_url = '/static/img/placeholder-bau.svg';
+  let datei_url: string | null = null;
+  let r2_key: string | null = null;
+  let content_type: string | null = null;
+  let groesse: number | null = null;
+
   const datei = form.datei;
   if (datei && typeof datei === 'object' && 'arrayBuffer' in datei) {
     const file = datei as File;
     if (file.size > 0) {
-      // Als Data-URL in DB (v1: kein R2). Begrenzung ~3 MB.
-      if (file.size <= 3_500_000) {
-        const buf = await file.arrayBuffer();
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-        datei_url = `data:${file.type || 'image/jpeg'};base64,${b64}`;
-      } else {
-        return c.json({ error: 'Bild zu groß (max. 3 MB)' }, 400);
+      if (file.size > FOTO_MAX_BYTES) {
+        return c.json({ error: 'Bild zu groß (max. 15 MB)' }, 400);
       }
+      const ct = file.type || 'image/jpeg';
+      if (!ct.startsWith('image/')) {
+        return c.json({ error: 'Nur Bilddateien erlaubt' }, 400);
+      }
+      const ext = (ct.split('/')[1] || 'jpg').split('+')[0].replace(/[^a-z0-9]/gi, '') || 'jpg';
+      const key = `foto/${objekt_id}/${crypto.randomUUID()}.${ext}`;
+      try {
+        await c.env.BUCKET.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: ct } });
+      } catch (e: any) {
+        return c.json({ error: 'Fehler beim Speichern des Bildes: ' + (e?.message || e) }, 500);
+      }
+      r2_key = key;
+      content_type = ct;
+      groesse = file.size;
     }
   }
+  // Ohne Datei: Platzhalter (falls nur Bereich/Kommentar erfasst wird)
+  if (!r2_key) datei_url = '/static/img/placeholder-bau.svg';
+
   const datum = str(form.datum) || new Date().toISOString().substring(0, 10);
-  await c.env.DB.prepare(`INSERT INTO foto (objekt_id, bereich, datei_url, kommentar, datum, hochgeladen_von_id) VALUES (?,?,?,?,?,?)`)
-    .bind(objekt_id, str(form.bereich), datei_url, str(form.kommentar), datum, user.id).run();
+  await c.env.DB.prepare(`INSERT INTO foto (objekt_id, bereich, datei_url, r2_key, content_type, groesse, kommentar, datum, hochgeladen_von_id) VALUES (?,?,?,?,?,?,?,?,?)`)
+    .bind(objekt_id, str(form.bereich), datei_url, r2_key, content_type, groesse, str(form.kommentar), datum, user.id).run();
+  await logVerlauf(c.env.DB, objekt_id, user.id, 'Foto hinzugefügt', 'bereich', null, str(form.bereich));
+  return c.json({ ok: true });
+});
+
+// Bild aus R2 streamen (nur für angemeldete Nutzer, Cookie wird vom <img> mitgesendet)
+api.get('/foto/:id', async (c) => {
+  const f = await c.env.DB.prepare('SELECT r2_key, content_type FROM foto WHERE id = ?').bind(c.req.param('id')).first<any>();
+  if (!f || !f.r2_key) return c.notFound();
+  const obj = await c.env.BUCKET.get(f.r2_key);
+  if (!obj) return c.notFound();
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': f.content_type || obj.httpMetadata?.contentType || 'image/jpeg',
+      'Cache-Control': 'private, max-age=86400',
+      'ETag': obj.httpEtag,
+    },
+  });
+});
+
+// Foto löschen (GF, oder Bauleiter der es hochgeladen hat) — entfernt auch das R2-Objekt
+api.delete('/foto/:id', async (c) => {
+  const user = c.get('user');
+  const id = c.req.param('id');
+  const f = await c.env.DB.prepare('SELECT * FROM foto WHERE id = ?').bind(id).first<any>();
+  if (!f) return c.json({ error: 'Nicht gefunden' }, 404);
+  if (!(user.rolle === 'GF' || (user.rolle === 'Bauleiter' && f.hochgeladen_von_id === user.id))) {
+    return c.json({ error: 'Keine Berechtigung' }, 403);
+  }
+  if (f.r2_key) { try { await c.env.BUCKET.delete(f.r2_key); } catch (_) { /* R2-Rest ignorieren */ } }
+  await c.env.DB.prepare('DELETE FROM foto WHERE id = ?').bind(id).run();
+  await logVerlauf(c.env.DB, f.objekt_id, user.id, 'Foto gelöscht', 'bereich', f.bereich, null);
   return c.json({ ok: true });
 });
 

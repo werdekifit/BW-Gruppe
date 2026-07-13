@@ -16,5 +16,11 @@
       "database_name": "webapp-production",
       "database_id": "3d058117-a172-4837-b42f-7a3c7fc90207"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "bw-bau-fotos"
+    }
   ]
 }

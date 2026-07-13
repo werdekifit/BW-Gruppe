@@ -218,9 +218,16 @@ async function speichereFoto(e){
   var form = e.target;
   var fd = new FormData(form);
   fd.append('objekt_id', window.__OBJEKT_ID);
+  var btn = form.querySelector('button[type=submit]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Lädt hoch…'; }
   try { await api('POST','/api/foto', fd); toast('Foto gespeichert'); setTimeout(function(){location.reload();},400); }
-  catch(err){ toast(err.message, true); }
+  catch(err){ toast(err.message, true); if (btn){ btn.disabled=false; btn.textContent='Hochladen'; } }
   return false;
+}
+async function loescheFoto(id){
+  if(!confirm('Foto wirklich löschen?')) return;
+  try { await api('DELETE','/api/foto/'+id); toast('Foto gelöscht'); setTimeout(function(){location.reload();},400); }
+  catch(e){ toast(e.message, true); }
 }
 
 // ========== Material ==========
