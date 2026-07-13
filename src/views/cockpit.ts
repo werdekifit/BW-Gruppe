@@ -10,9 +10,12 @@ export function cockpitBody(objekte: ObjektMitAmpel[], user: Nutzer, bauleiter: 
   const blockiert = aktive.filter(o => o.gewerke_blockiert > 0).length;
   const kannAnlegen = user.rolle === 'GF' || user.rolle === 'Bauleiter';
 
-  // Kaufmännische Summenzeile über alle aktiven Objekte
+  // Kaufmännische Summenzeile über alle aktiven Objekte (echte Kalkulation)
   const angebotSumme = aktive.reduce((s, o) => s + (o.angebot_summe || 0), 0);
   const abgerechnetSumme = aktive.reduce((s, o) => s + (o.abgerechnet_summe || 0), 0);
+  const offenSumme = angebotSumme - abgerechnetSumme;               // noch abzurechnen
+  const istSumme = aktive.reduce((s, o) => s + (o.ist_kosten || 0), 0);
+  const margeSumme = angebotSumme - istSumme;                        // kalkuliertes Ergebnis
 
   const cards = objekte.map(o => {
     const gesLabel = o.gesellschaft === 'PG' ? 'PG' : o.gesellschaft === 'BF' ? 'BF' : '';
@@ -55,6 +58,8 @@ export function cockpitBody(objekte: ObjektMitAmpel[], user: Nutzer, bauleiter: 
     <div class="summary-pill">⛔ ${blockiert} blockiert</div>
     <div class="summary-pill sum-money" title="Summe Angebote (netto) aller aktiven Baustellen">Angebot Σ ${fmtEuro(angebotSumme)}</div>
     <div class="summary-pill sum-money" title="Summe abgerechnet (netto) aller aktiven Baustellen">Abgerechnet Σ ${fmtEuro(abgerechnetSumme)}</div>
+    <div class="summary-pill sum-money" title="Noch abzurechnen: Angebot Σ − Abgerechnet Σ">Offen Σ ${fmtEuro(offenSumme)}</div>
+    <div class="summary-pill sum-money ${margeSumme>=0?'sum-pos':'sum-neg'}" title="Kalkuliertes Ergebnis: Angebot Σ − Ist-Kosten Σ">Marge Σ ${fmtEuro(margeSumme)}</div>
   </div>
 
   <div class="filters" style="margin-bottom:18px;">

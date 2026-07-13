@@ -82,6 +82,34 @@ export function fmtEuro(n: number | null | undefined, decimals = 0): string {
   }).format(n) + ' €';
 }
 
+// Prozent-Format, z. B. 45 %
+export function fmtProzent(n: number | null | undefined): string {
+  if (n == null) return '—';
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 }).format(n) + ' %';
+}
+
+// Abgeleitete kaufmännische Kennzahlen (echte Kalkulation, nicht nur Anzeige)
+export interface KaufKennzahlen {
+  offen: number | null;          // Angebot − Abgerechnet (noch abzurechnen)
+  abrechnungsgrad: number | null; // Abgerechnet / Angebot in %
+  marge: number | null;          // Angebot − Ist-Kosten (kalkuliertes Ergebnis)
+  margeProzent: number | null;    // Marge / Angebot in %
+}
+export function kaufKennzahlen(o: {
+  angebot_summe: number | null;
+  abgerechnet_summe: number | null;
+  ist_kosten: number | null;
+}): KaufKennzahlen {
+  const hatAngebot = o.angebot_summe != null && o.angebot_summe > 0;
+  const angebot = o.angebot_summe ?? 0;
+  const abger = o.abgerechnet_summe ?? 0;
+  const offen = hatAngebot ? angebot - abger : null;
+  const abrechnungsgrad = hatAngebot ? Math.round((abger / angebot) * 100) : null;
+  const marge = (hatAngebot && o.ist_kosten != null) ? angebot - o.ist_kosten : null;
+  const margeProzent = (marge != null && hatAngebot) ? Math.round((marge / angebot) * 100) : null;
+  return { offen, abrechnungsgrad, marge, margeProzent };
+}
+
 // Datum dd.mm.yyyy
 export function fmtDatum(d: string | null): string {
   if (!d) return '—';

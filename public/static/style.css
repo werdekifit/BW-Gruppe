@@ -129,11 +129,17 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .progress-line { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 
 /* ---------- Kaufmännische Kennzahlen ---------- */
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 8px; }
 .kpi { background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; }
 .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
 .kpi-wert { font-size: 16px; font-weight: 800; margin-top: 2px; }
+.kpi-sub { font-size: 12px; font-weight: 600; color: var(--muted); }
+.kpi.kpi-pos { border-color: rgba(63,178,127,.5); } .kpi.kpi-pos .kpi-wert { color: var(--gruen); }
+.kpi.kpi-neg { border-color: rgba(217,83,79,.5); } .kpi.kpi-neg .kpi-wert { color: var(--rot); }
+.kpi-group { margin-top: 14px; }
+.kpi-group-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 800; opacity: .8; }
 .sum-money { font-size: 13px; color: var(--accent-hell); }
+.sum-money.sum-pos { color: var(--gruen); } .sum-money.sum-neg { color: var(--rot); }
 td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ---------- Vorbereitungs-Chips ---------- */

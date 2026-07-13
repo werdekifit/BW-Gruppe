@@ -277,26 +277,26 @@ async function speichereEntscheidung(e){
 (function(){
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    // Kein Support -> Mic-Buttons ausblenden
+    // Kein Support -> Mic-Buttons ausblenden (Tippen bleibt möglich)
     document.querySelectorAll('.mic-btn').forEach(function(b){ b.style.display='none'; });
     return;
   }
   var aktiv = null;
-  document.addEventListener('click', function(e){
-    var btn = e.target.closest('.mic-btn');
-    if (!btn) return;
-    var targetId = btn.getAttribute('data-mic-for');
-    var field = document.getElementById(targetId);
-    if (!field) return;
 
-    if (aktiv && aktiv.btn === btn) { aktiv.rec.stop(); return; }
-    if (aktiv) { aktiv.rec.stop(); }
+  function meldung(err){
+    if (err === 'not-allowed' || err === 'service-not-allowed')
+      return 'Mikrofon ist blockiert. Bitte im Browser erlauben (Schloss-Symbol in der Adressleiste) und Seite neu laden.';
+    if (err === 'no-speech') return 'Nichts erkannt – bitte erneut auf 🎤 tippen und deutlich sprechen.';
+    if (err === 'audio-capture') return 'Kein Mikrofon gefunden. Bitte Mikrofon prüfen.';
+    if (err === 'network') return 'Spracherkennung gerade nicht erreichbar. Bitte in ein paar Sekunden erneut auf 🎤 tippen. Tippen funktioniert weiterhin.';
+    return 'Spracherkennung: ' + err;
+  }
 
+  function starte(field, btn, startWert, versuch){
     var rec = new SR();
     rec.lang = 'de-DE';
     rec.interimResults = true;
     rec.continuous = false;
-    var startWert = field.value ? field.value + ' ' : '';
     btn.classList.add('rec');
     aktiv = { rec: rec, btn: btn };
 
@@ -305,9 +305,29 @@ async function speichereEntscheidung(e){
       for (var i=0; i<ev.results.length; i++){ txt += ev.results[i][0].transcript; }
       field.value = startWert + txt;
     };
-    rec.onerror = function(ev){ toast('Spracherkennung: ' + ev.error, true); };
-    rec.onend = function(){ btn.classList.remove('rec'); aktiv = null; };
-    try { rec.start(); } catch(err){ btn.classList.remove('rec'); aktiv=null; }
+    rec.onerror = function(ev){
+      // Ein automatischer Neuversuch bei transientem Netzwerkfehler (kommt bei Chrome gelegentlich vor)
+      if (ev.error === 'network' && versuch < 1) {
+        if (aktiv && aktiv.rec === rec) aktiv = null;
+        setTimeout(function(){ starte(field, btn, startWert, versuch + 1); }, 600);
+        return;
+      }
+      if (ev.error !== 'aborted') toast(meldung(ev.error), true);
+    };
+    rec.onend = function(){ btn.classList.remove('rec'); if (aktiv && aktiv.rec === rec) aktiv = null; };
+    try { rec.start(); } catch(err){ btn.classList.remove('rec'); if (aktiv && aktiv.rec === rec) aktiv = null; }
+  }
+
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest('.mic-btn');
+    if (!btn) return;
+    var field = document.getElementById(btn.getAttribute('data-mic-for'));
+    if (!field) return;
+
+    if (aktiv && aktiv.btn === btn) { try { aktiv.rec.stop(); } catch(_){} return; }
+    if (aktiv) { try { aktiv.rec.stop(); } catch(_){} }
+
+    starte(field, btn, field.value ? field.value + ' ' : '', 0);
   });
 })();
 

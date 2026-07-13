@@ -1,6 +1,6 @@
 import type { Nutzer, Gewerk, Vorbereitung, VerlaufEintrag } from '../types';
 import type { ObjektMitAmpel } from '../data';
-import { escapeHtml, fmtDatum, fmtMonatJahr, fmtEuro, GEWERK_STATUS_LABEL, GEWERK_STATUS_ICON, VORB_FELDER, VORB_STATUS_LABEL, VORB_STATUS_ICON, istUeberfaellig } from '../util';
+import { escapeHtml, fmtDatum, fmtMonatJahr, fmtEuro, fmtProzent, kaufKennzahlen, GEWERK_STATUS_LABEL, GEWERK_STATUS_ICON, VORB_FELDER, VORB_STATUS_LABEL, VORB_STATUS_ICON, istUeberfaellig } from '../util';
 import { micField } from './layout';
 
 export interface DetailData {
@@ -76,14 +76,31 @@ export function detailBody(d: DetailData, user: Nutzer): string {
 
 // Kaufmännische Kennzahlen: Angebot / Abgerechnet / AZ / SR / Ist
 function kennzahlenBlock(o: ObjektMitAmpel): string {
-  const kpi = (label: string, wert: string, title = '') =>
-    `<div class="kpi" ${title?`title="${escapeHtml(title)}"`:''}><div class="kpi-label">${label}</div><div class="kpi-wert">${wert}</div></div>`;
-  return `<div class="kpi-row">
-    ${kpi('Angebot netto', fmtEuro(o.angebot_summe), 'Summe Angebote aller Gewerke')}
-    ${kpi('Abgerechnet netto', fmtEuro(o.abgerechnet_summe), 'Summe abgerechnet aller Gewerke')}
-    ${kpi('AZ netto', fmtEuro(o.az_netto), 'Abschlagszahlung')}
-    ${kpi('SR netto', fmtEuro(o.sr_netto), 'Schlussrechnung')}
-    ${kpi('Ist-Kosten', fmtEuro(o.ist_kosten))}
+  const kpi = (label: string, wert: string, title = '', cls = '') =>
+    `<div class="kpi ${cls}" ${title?`title="${escapeHtml(title)}"`:''}><div class="kpi-label">${label}</div><div class="kpi-wert">${wert}</div></div>`;
+  const k = kaufKennzahlen(o);
+  // Vorzeichen-Klasse für Marge (grün = positiv, rot = negativ)
+  const margeCls = k.marge == null ? '' : (k.marge >= 0 ? 'kpi-pos' : 'kpi-neg');
+  const margeWert = k.marge == null ? '—'
+    : `${fmtEuro(k.marge)}${k.margeProzent != null ? ` <span class="kpi-sub">(${fmtProzent(k.margeProzent)})</span>` : ''}`;
+  return `
+  <div class="kpi-group">
+    <div class="kpi-group-label">Eingaben</div>
+    <div class="kpi-row">
+      ${kpi('Angebot netto', fmtEuro(o.angebot_summe), 'Summe Angebote aller Gewerke')}
+      ${kpi('Abgerechnet netto', fmtEuro(o.abgerechnet_summe), 'Summe abgerechnet aller Gewerke')}
+      ${kpi('Ist-Kosten', fmtEuro(o.ist_kosten))}
+      ${kpi('AZ netto', fmtEuro(o.az_netto), 'Abschlagszahlung')}
+      ${kpi('SR netto', fmtEuro(o.sr_netto), 'Schlussrechnung')}
+    </div>
+  </div>
+  <div class="kpi-group">
+    <div class="kpi-group-label">Berechnet</div>
+    <div class="kpi-row">
+      ${kpi('Offen (noch abzurechnen)', k.offen == null ? '—' : fmtEuro(k.offen), 'Angebot − Abgerechnet')}
+      ${kpi('Abrechnungsgrad', k.abrechnungsgrad == null ? '—' : fmtProzent(k.abrechnungsgrad), 'Abgerechnet ÷ Angebot')}
+      ${kpi('Marge (kalkuliert)', margeWert, 'Angebot − Ist-Kosten', margeCls)}
+    </div>
   </div>`;
 }
 
